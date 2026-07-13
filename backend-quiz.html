@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BUILD::QUIZ — Auth & Express Fundamentals</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0e0f;
+    --panel:#10161a;
+    --panel-2:#141b1f;
+    --line:#1e2a2e;
+    --gold:#d4af37;
+    --gold-dim:#8a7228;
+    --cyan:#00d9ff;
+    --cyan-dim:#0a7f96;
+    --red:#ff5d5d;
+    --text:#d7e0e0;
+    --text-dim:#6f8285;
+    --mono:'JetBrains Mono', monospace;
+    --grotesk:'Space Grotesk', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--grotesk);
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  body::before{
+    content:"";
+    position:fixed;inset:0;
+    background-image:
+      linear-gradient(rgba(0,217,255,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,217,255,0.025) 1px, transparent 1px);
+    background-size:24px 24px;
+    pointer-events:none;
+    z-index:0;
+  }
+  .wrap{
+    position:relative;z-index:1;
+    max-width:640px;
+    margin:0 auto;
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+  }
+
+  /* ---- terminal top bar / build log, the signature element ---- */
+  .buildbar{
+    border-bottom:1px solid var(--line);
+    padding:14px 18px;
+    background:var(--panel);
+  }
+  .buildbar-top{
+    display:flex;justify-content:space-between;align-items:center;
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:0.06em;
+    color:var(--text-dim);
+    margin-bottom:10px;
+  }
+  .buildbar-top .dots span{
+    display:inline-block;width:7px;height:7px;border-radius:50%;
+    background:var(--line);margin-right:4px;
+  }
+  .buildbar-top .dots span:nth-child(1){background:#ff5f57;}
+  .buildbar-top .dots span:nth-child(2){background:#febc2e;}
+  .buildbar-top .dots span:nth-child(3){background:#28c840;}
+  .track{
+    height:6px;
+    background:var(--line);
+    border-radius:3px;
+    overflow:hidden;
+    position:relative;
+  }
+  .track-fill{
+    height:100%;
+    width:0%;
+    background:linear-gradient(90deg, var(--cyan-dim), var(--cyan));
+    transition:width .4s ease;
+    border-radius:3px;
+  }
+  .buildbar-meta{
+    display:flex;justify-content:space-between;
+    font-family:var(--mono);
+    font-size:11px;
+    color:var(--text-dim);
+    margin-top:8px;
+  }
+  .buildbar-meta b{color:var(--gold);font-weight:600;}
+
+  /* ---- main stage ---- */
+  main{
+    flex:1;
+    padding:26px 18px 40px;
+  }
+  .stage-label{
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--cyan);
+    margin-bottom:10px;
+  }
+  .q-title{
+    font-family:var(--grotesk);
+    font-weight:600;
+    font-size:19px;
+    line-height:1.45;
+    color:var(--text);
+    margin:0 0 16px;
+  }
+  .codebox{
+    background:#0d1214;
+    border:1px solid var(--line);
+    border-left:3px solid var(--gold-dim);
+    border-radius:6px;
+    padding:14px 16px;
+    font-family:var(--mono);
+    font-size:13px;
+    line-height:1.7;
+    color:#a9c3c6;
+    overflow-x:auto;
+    margin-bottom:18px;
+    white-space:pre;
+  }
+  .codebox .blank{
+    color:var(--gold);
+    border-bottom:1px dashed var(--gold-dim);
+    padding:0 2px;
+  }
+  .codebox .kw{color:#c586c0;}
+  .codebox .fn{color:var(--cyan);}
+  .codebox .str{color:#d4af37;}
+  .codebox .cm{color:var(--text-dim);font-style:italic;}
+
+  .options{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+  .opt{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:13px 14px;
+    font-family:var(--mono);
+    font-size:13.5px;
+    color:var(--text);
+    text-align:left;
+    cursor:pointer;
+    display:flex;
+    align-items:flex-start;
+    gap:10px;
+    transition:border-color .15s, background .15s;
+  }
+  .opt:active{transform:scale(0.995);}
+  .opt .tag{
+    flex-shrink:0;
+    width:20px;height:20px;
+    border-radius:5px;
+    border:1px solid var(--line);
+    display:flex;align-items:center;justify-content:center;
+    font-size:10px;color:var(--text-dim);
+  }
+  .opt:not(.locked):hover{border-color:var(--cyan-dim);}
+  .opt.correct{
+    border-color:var(--gold);
+    background:rgba(212,175,55,0.08);
+  }
+  .opt.correct .tag{border-color:var(--gold);color:var(--gold);}
+  .opt.wrong{
+    border-color:var(--red);
+    background:rgba(255,93,93,0.06);
+  }
+  .opt.wrong .tag{border-color:var(--red);color:var(--red);}
+  .opt.locked{cursor:default;}
+  .opt.dim{opacity:0.45;}
+
+  .explain{
+    margin-top:16px;
+    padding:13px 14px;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:8px;
+    font-size:13px;
+    line-height:1.6;
+    color:var(--text-dim);
+    display:none;
+  }
+  .explain.show{display:block;}
+  .explain b{color:var(--text);}
+
+  .nextbtn{
+    margin-top:20px;
+    width:100%;
+    padding:14px;
+    background:var(--gold);
+    color:#0a0e0f;
+    border:none;
+    border-radius:8px;
+    font-family:var(--grotesk);
+    font-weight:600;
+    font-size:14.5px;
+    letter-spacing:0.02em;
+    cursor:pointer;
+    display:none;
+  }
+  .nextbtn.show{display:block;}
+  .nextbtn:active{transform:scale(0.98);}
+
+  /* ---- intro screen ---- */
+  .intro{
+    padding:40px 22px;
+    display:flex;
+    flex-direction:column;
+    flex:1;
+    justify-content:center;
+  }
+  .intro-eyebrow{
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:var(--cyan);
+    margin-bottom:14px;
+  }
+  .intro h1{
+    font-family:var(--grotesk);
+    font-size:32px;
+    font-weight:700;
+    line-height:1.15;
+    margin:0 0 14px;
+    color:var(--text);
+  }
+  .intro h1 span{color:var(--gold);}
+  .intro p{
+    font-size:14.5px;
+    line-height:1.6;
+    color:var(--text-dim);
+    margin:0 0 26px;
+  }
+  .stat-row{
+    display:flex;
+    gap:10px;
+    margin-bottom:30px;
+  }
+  .stat{
+    flex:1;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:14px 10px;
+    text-align:center;
+  }
+  .stat .n{
+    font-family:var(--mono);
+    font-size:22px;
+    font-weight:700;
+    color:var(--gold);
+  }
+  .stat .l{
+    font-family:var(--mono);
+    font-size:10px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--text-dim);
+    margin-top:4px;
+  }
+  .startbtn{
+    padding:16px;
+    background:var(--gold);
+    color:#0a0e0f;
+    border:none;
+    border-radius:8px;
+    font-family:var(--grotesk);
+    font-weight:700;
+    font-size:15px;
+    cursor:pointer;
+  }
+  .startbtn:active{transform:scale(0.98);}
+
+  /* ---- results screen ---- */
+  .results{
+    padding:36px 22px;
+    display:none;
+    flex-direction:column;
+    flex:1;
+  }
+  .results.show{display:flex;}
+  .verdict{
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    padding:4px 10px;
+    border-radius:4px;
+    width:fit-content;
+    margin-bottom:16px;
+  }
+  .verdict.pass{background:rgba(212,175,55,0.12);color:var(--gold);border:1px solid var(--gold-dim);}
+  .verdict.fail{background:rgba(255,93,93,0.1);color:var(--red);border:1px solid #7a2e2e;}
+  .score-big{
+    font-family:var(--mono);
+    font-size:56px;
+    font-weight:800;
+    color:var(--text);
+    line-height:1;
+    margin-bottom:6px;
+  }
+  .score-big span{font-size:24px;color:var(--text-dim);font-weight:500;}
+  .score-sub{
+    font-size:13.5px;
+    color:var(--text-dim);
+    margin-bottom:26px;
+  }
+  .breakdown{
+    display:flex;
+    gap:10px;
+    margin-bottom:26px;
+  }
+  .bd{
+    flex:1;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:14px 12px;
+  }
+  .bd .n{font-family:var(--mono);font-size:20px;font-weight:700;color:var(--cyan);}
+  .bd .l{font-family:var(--mono);font-size:10px;color:var(--text-dim);margin-top:3px;letter-spacing:0.06em;text-transform:uppercase;}
+  .retrybtn{
+    padding:15px;
+    background:transparent;
+    border:1px solid var(--gold-dim);
+    color:var(--gold);
+    border-radius:8px;
+    font-family:var(--grotesk);
+    font-weight:600;
+    font-size:14px;
+    cursor:pointer;
+  }
+  .missed-title{
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:var(--text-dim);
+    margin:8px 0 12px;
+  }
+  .missed-item{
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:12px 14px;
+    margin-bottom:8px;
+    font-size:12.5px;
+    line-height:1.55;
+  }
+  .missed-item b{color:var(--gold);display:block;margin-bottom:3px;font-family:var(--mono);font-size:11px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- INTRO -->
+  <div class="intro" id="intro">
+    <div class="intro-eyebrow">// build::quiz</div>
+    <h1>Auth &amp; Express<br><span>Fundamentals</span></h1>
+    <p>30 checks against a real Node/Express auth stack — register, login, bcrypt, JWT, middleware. 10 theory questions, then 20 "complete the code" prompts pulled straight from working router and controller files.</p>
+    <div class="stat-row">
+      <div class="stat"><div class="n">10</div><div class="l">Theory</div></div>
+      <div class="stat"><div class="n">20</div><div class="l">Complete Code</div></div>
+      <div class="stat"><div class="n">80%</div><div class="l">Pass Line</div></div>
+    </div>
+    <button class="startbtn" onclick="startQuiz()">RUN BUILD →</button>
+  </div>
+
+  <!-- QUIZ -->
+  <div class="buildbar" id="buildbar" style="display:none;">
+    <div class="buildbar-top">
+      <span id="phaseLabel">PHASE 1 / THEORY</span>
+      <span class="dots"><span></span><span></span><span></span></span>
+    </div>
+    <div class="track"><div class="track-fill" id="trackFill"></div></div>
+    <div class="buildbar-meta">
+      <span>Q <b id="qNum">1</b>/30</span>
+      <span>Score <b id="liveScore">0</b></span>
+    </div>
+  </div>
+
+  <main id="quizMain" style="display:none;">
+    <div class="stage-label" id="stageLabel">Theory Check 01</div>
+    <h2 class="q-title" id="qTitle"></h2>
+    <div class="codebox" id="qCode" style="display:none;"></div>
+    <div class="options" id="qOptions"></div>
+    <div class="explain" id="qExplain"></div>
+    <button class="nextbtn" id="nextBtn" onclick="nextQuestion()">CONTINUE →</button>
+  </main>
+
+  <!-- RESULTS -->
+  <div class="results" id="results">
+    <div class="verdict" id="verdict">BUILD PASSED</div>
+    <div class="score-big" id="scoreBig">0<span>/30</span></div>
+    <div class="score-sub" id="scoreSub">Compiled with warnings.</div>
+    <div class="breakdown">
+      <div class="bd"><div class="n" id="theoryScore">0/10</div><div class="l">Theory</div></div>
+      <div class="bd"><div class="n" id="codeScore">0/20</div><div class="l">Complete Code</div></div>
+    </div>
+    <button class="retrybtn" onclick="location.reload()">↺ RE-RUN BUILD</button>
+    <div class="missed-title" id="missedTitle" style="display:none;">Failed assertions</div>
+    <div id="missedList"></div>
+  </div>
+  
+  
+  <footer style="text-align: center; padding: 20px; margin-top: 40px; font-size: 0.85rem; color: #888; border-top: 1px solid #e0e0e0;">
+  <p>© 2026. Created by Lona Matshingana in the Republic of South Africa · <a href="mailto:matshinganalona@gmail.com" style="color: #888; text-decoration: none;">matshinganalona@gmail.com</a></p>
+</footer>
+
+</div>
+
+<script>
+const questions = [
+  // ---------------- THEORY (10) ----------------
+  {
+    phase:'theory',
+    q:"In bcrypt.hash(password, 10), what does the 10 control?",
+    code:null,
+    options:[
+      "The maximum password length allowed",
+      "The number of salt rounds — how many times the hashing cost is doubled",
+      "The number of characters in the generated hash",
+      "The token expiry time in minutes"
+    ],
+    correct:1,
+    explain:"<b>Salt rounds.</b> Each increment roughly doubles the computation cost. 10 is a common default — high enough to resist brute-forcing, low enough to keep login responsive."
+  },
+  {
+    phase:'theory',
+    q:"A successful POST /register that creates a new user should typically respond with which status code?",
+    code:null,
+    options:["200 OK","201 Created","204 No Content","202 Accepted"],
+    correct:1,
+    explain:"<b>201 Created</b> signals a new resource now exists. res.json() alone defaults to 200, which technically works but blurs the distinction between 'read' and 'created' responses."
+  },
+  {
+    phase:'theory',
+    q:"What is the purpose of { expiresIn: \"1h\" } in jwt.sign()?",
+    code:null,
+    options:[
+      "It deletes the user session after 1 hour",
+      "It sets how long the token stays valid before the server rejects it",
+      "It limits the request to 1 hour of server time",
+      "It refreshes the JWT_SECRET every hour"
+    ],
+    correct:1,
+    explain:"<b>Token lifetime.</b> After the expiry timestamp encoded inside the JWT passes, jwt.verify() will throw — forcing a fresh login rather than a stolen token working forever."
+  },
+  {
+    phase:'theory',
+    q:"Why should JWT_SECRET live in process.env rather than directly in the source code?",
+    code:null,
+    options:[
+      "Environment variables run faster than string literals",
+      "So the secret isn't committed to version control and can differ per environment",
+      "process.env values are automatically encrypted",
+      "It's required by the jsonwebtoken package to function"
+    ],
+    correct:1,
+    explain:"<b>Secret hygiene.</b> Hardcoding a secret means anyone with repo access can forge tokens. Env vars keep it out of Git and let dev/staging/prod each use a different value."
+  },
+  {
+    phase:'theory',
+    q:"What does app.use(express.json()) actually do?",
+    code:null,
+    options:[
+      "Converts all responses to JSON format",
+      "Parses incoming requests with a JSON body and populates req.body",
+      "Validates that req.body matches a schema",
+      "Enables CORS for JSON requests"
+    ],
+    correct:1,
+    explain:"<b>Body parsing middleware.</b> Without it, req.body is undefined for JSON payloads — destructuring { username, password } from it would throw."
+  },
+  {
+    phase:'theory',
+    q:"In web auth, what's the practical difference between authentication and authorization?",
+    code:null,
+    options:[
+      "They're two names for the same check",
+      "Authentication confirms who you are; authorization decides what you're allowed to do",
+      "Authentication is client-side, authorization is server-side",
+      "Authorization always happens before authentication"
+    ],
+    correct:1,
+    explain:"<b>Two separate questions.</b> Login/JWT verification answers 'who is this?' (authentication). Checking role or ownership before letting an action through answers 'are they allowed?' (authorization)."
+  },
+  {
+    phase:'theory',
+    q:"Why hash a password with bcrypt instead of storing it as plain text?",
+    code:null,
+    options:[
+      "Hashing makes login faster",
+      "If the database is ever leaked, hashed passwords can't be directly read or reused",
+      "Plain text passwords take up more storage space",
+      "bcrypt is required by the JSON Web Token standard"
+    ],
+    correct:1,
+    explain:"<b>Breach containment.</b> A one-way hash means a database leak doesn't hand out anyone's real password — bcrypt also makes brute-forcing the hash deliberately slow."
+  },
+  {
+    phase:'theory',
+    q:"What is Express middleware, in one sentence?",
+    code:null,
+    options:[
+      "A database driver used only for MongoDB",
+      "A function with access to (req, res, next) that runs before the final route handler",
+      "A frontend framework bundled with Express",
+      "A tool for compiling TypeScript into Express routes"
+    ],
+    correct:1,
+    explain:"<b>Request pipeline.</b> Middleware sits between the incoming request and the route handler — parsing bodies, checking auth tokens, logging — and calls next() to pass control along."
+  },
+  {
+    phase:'theory',
+    q:"The current login controller signs a token without checking the submitted password against a stored hash. What's the security consequence?",
+    code:null,
+    options:[
+      "None — JWTs are secure regardless of what's inside them",
+      "Anyone can log in as any username, since no credential is actually verified",
+      "The token will simply expire faster",
+      "bcrypt will silently reject the request"
+    ],
+    correct:1,
+    explain:"<b>Missing verification step.</b> Signing a JWT from req.body.username alone means the password field is decorative — a real login must bcrypt.compare() the submitted password against the stored hash before calling jwt.sign()."
+  },
+  {
+    phase:'theory',
+    q:"Where should a route requiring login usually verify the JWT — in the route handler itself, or in middleware?",
+    code:null,
+    options:[
+      "Inside every route handler individually, each time",
+      "In shared middleware that runs before the route handler and attaches the decoded user to req",
+      "JWTs don't need server-side verification once issued",
+      "Only in the frontend, before the request is sent"
+    ],
+    correct:1,
+    explain:"<b>DRY auth.</b> A single verifyToken middleware, mounted on protected routes, avoids repeating jwt.verify() logic everywhere and keeps route handlers focused on business logic."
+  },
+
+  // ---------------- COMPLETE THE CODE (20) ----------------
+  {
+    phase:'code',
+    q:"Complete the router setup — what goes in the blank?",
+    code:`const express = require("express");
+const router = <span class="blank">____</span>;
+
+router.post("/register", authController.register);
+module.exports = router;`,
+    options:["express.Router()","new Router()","express.router()","Router.create()"],
+    correct:0,
+    explain:"<b>express.Router()</b> creates a mini, mountable route handler — the standard way to split routes into their own file."
+  },
+  {
+    phase:'code',
+    q:"Fill in the missing middleware so Express can read JSON request bodies:",
+    code:`const app = express();
+<span class="blank">____</span>;
+app.use("/api/auth", authRoutes);`,
+    options:[
+      "app.use(express.json())",
+      "app.parse(json())",
+      "app.body(express.json())",
+      "express.use(app.json())"
+    ],
+    correct:0,
+    explain:"<b>app.use(express.json())</b> registers the built-in JSON body parser so req.body is populated for incoming POST requests."
+  },
+  {
+    phase:'code',
+    q:"Complete the password hashing line in the register controller:",
+    code:`const { username, password } = req.body;
+const hashedPassword = await <span class="blank">____</span>;`,
+    options:[
+      "bcrypt.hash(password, 10)",
+      "bcrypt.encrypt(password)",
+      "bcrypt.sign(password, 10)",
+      "bcrypt.generate(password, 10)"
+    ],
+    correct:0,
+    explain:"<b>bcrypt.hash(password, 10)</b> — hash() takes the plaintext and a salt-round cost factor, and returns a promise resolving to the hash."
+  },
+  {
+    phase:'code',
+    q:"The login controller is missing a credential check. What line belongs before jwt.sign() is called?",
+    code:`const user = await User.findOne({ username });
+if (!user) return res.status(401).json({ message: "Invalid credentials" });
+
+const isMatch = await <span class="blank">____</span>;
+if (!isMatch) return res.status(401).json({ message: "Invalid credentials" });`,
+    options:[
+      "bcrypt.compare(password, user.password)",
+      "bcrypt.match(password, user.password)",
+      "bcrypt.verify(user.password, password)",
+      "password === user.password"
+    ],
+    correct:0,
+    explain:"<b>bcrypt.compare(plain, hash)</b> re-hashes the submitted password internally and checks it against the stored hash — this is the missing step in the original login controller."
+  },
+  {
+    phase:'code',
+    q:"Complete the JWT signing call:",
+    code:`const token = jwt.sign(
+  { username },
+  <span class="blank">____</span>,
+  { expiresIn: "1h" }
+);`,
+    options:["process.env.JWT_SECRET","JWT_SECRET","req.env.JWT_SECRET","env.JWT_SECRET"],
+    correct:0,
+    explain:"<b>process.env.JWT_SECRET</b> reads the secret from environment variables at runtime, never from a hardcoded string."
+  },
+  {
+    phase:'code',
+    q:"Write the auth middleware that reads a Bearer token from the request header:",
+    code:`function verifyToken(req, res, next) {
+  const authHeader = req.headers["authorization"];
+  if (!authHeader) return res.status(401).json({ message: "No token" });
+
+  const token = <span class="blank">____</span>;
+  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+    if (err) return res.status(403).json({ message: "Invalid token" });
+    req.user = decoded;
+    next();
+  });
+}`,
+    options:[
+      'authHeader.split(" ")[1]',
+      "authHeader.slice(0)",
+      "authHeader.token",
+      'authHeader.replace("token", "")'
+    ],
+    correct:0,
+    explain:'<b>authHeader.split(" ")[1]</b> — headers arrive as "Bearer &lt;token&gt;", so splitting on the space and taking index 1 isolates the raw token.'
+  },
+  {
+    phase:'code',
+    q:"Complete the try/catch so a database failure doesn't crash the request:",
+    code:`exports.register = async (req, res) => {
+  try {
+    const hashedPassword = await bcrypt.hash(req.body.password, 10);
+    // save user
+    res.status(201).json({ message: "User registered" });
+  } <span class="blank">____</span> (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+};`,
+    options:["catch","except","rescue","error"],
+    correct:0,
+    explain:"<b>catch (err)</b> is the only valid JavaScript keyword here — it catches whatever the try block throws, including a rejected promise from await."
+  },
+  {
+    phase:'code',
+    q:"Fill in the blank to send a 400 response for a missing field:",
+    code:`if (!username || !password) {
+  return res.<span class="blank">____</span>.json({ message: "Username and password required" });
+}`,
+    options:["status(400)","code(400)","status: 400","send(400)"],
+    correct:0,
+    explain:"<b>res.status(400)</b> sets the HTTP status before chaining .json() to send the body — status() returns res so the chain works."
+  },
+  {
+    phase:'code',
+    q:"Complete the export at the bottom of routes/auth.js:",
+    code:`router.post("/login", authController.login);
+
+<span class="blank">____</span> = router;`,
+    options:["module.exports","exports.default","export default","module.export"],
+    correct:0,
+    explain:"<b>module.exports</b> is how CommonJS files expose a value to require() elsewhere — module.export (no s) is a common typo that silently fails."
+  },
+  {
+    phase:'code',
+    q:"Load environment variables from a .env file at the top of the entry file:",
+    code:`<span class="blank">____</span>;
+const express = require("express");
+const app = express();`,
+    options:[
+      'require("dotenv").config()',
+      'import dotenv from "dotenv"',
+      'process.loadEnv()',
+      'require("env").config()'
+    ],
+    correct:0,
+    explain:'<b>require("dotenv").config()</b> reads .env and populates process.env before anything else needs those values — it must run first.'
+  },
+  {
+    phase:'code',
+    q:"Complete the Mongoose user schema definition:",
+    code:`const mongoose = require("mongoose");
+
+const userSchema = new mongoose.<span class="blank">____</span>({
+  username: { type: String, required: true, unique: true },
+  password: { type: String, required: true }
+});
+
+module.exports = mongoose.model("User", userSchema);`,
+    options:["Schema","Model","Collection","Document"],
+    correct:0,
+    explain:"<b>mongoose.Schema</b> defines the shape and validation rules for documents; mongoose.model() then compiles that schema into a usable model."
+  },
+  {
+    phase:'code',
+    q:"Mark this controller function as asynchronous so await works inside it:",
+    code:`exports.login = <span class="blank">____</span> (req, res) => {
+  const user = await User.findOne({ username: req.body.username });
+  // ...
+};`,
+    options:["async","await","promise","function* "],
+    correct:0,
+    explain:"<b>async</b> before the parameter list makes the function return a promise and allows await inside its body — without it, await throws a syntax error."
+  },
+  {
+    phase:'code',
+    q:"Complete the Express error-handling middleware signature (note the extra parameter):",
+    code:`app.use((<span class="blank">____</span>, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ message: "Something broke" });
+});`,
+    options:["err","error","exception","fail"],
+    correct:0,
+    explain:"<b>err</b> as the first parameter is what tells Express this middleware is an error handler — it must have exactly four parameters, err included."
+  },
+  {
+    phase:'code',
+    q:"Read a dynamic route parameter for GET /users/:id:",
+    code:`router.get("/users/:id", async (req, res) => {
+  const userId = req.<span class="blank">____</span>.id;
+  const user = await User.findById(userId);
+  res.json(user);
+});`,
+    options:["params","query","body","id"],
+    correct:0,
+    explain:"<b>req.params</b> holds route placeholders (from :id). req.query is for ?search=x, and req.body is for the request payload."
+  },
+  {
+    phase:'code',
+    q:"Read a query string like GET /users?active=true:",
+    code:`router.get("/users", (req, res) => {
+  const isActive = req.<span class="blank">____</span>.active;
+  // ...
+});`,
+    options:["query","params","body","headers"],
+    correct:0,
+    explain:"<b>req.query</b> parses everything after the ? in the URL into an object — here, { active: 'true' }."
+  },
+  {
+    phase:'code',
+    q:"Complete the server startup call:",
+    code:`app.<span class="blank">____</span>(3000, () => {
+  console.log("Server running on port 3000");
+});`,
+    options:["listen","start","run","serve"],
+    correct:0,
+    explain:"<b>app.listen(port, callback)</b> binds the Express app to a port and begins accepting connections."
+  },
+  {
+    phase:'code',
+    q:"Complete the compound export style used across authController.js:",
+    code:`<span class="blank">____</span>.register = async (req, res) => { /* ... */ };
+exports.login = async (req, res) => { /* ... */ };`,
+    options:["exports","module","this","router"],
+    correct:0,
+    explain:"<b>exports.register</b> attaches a property directly to the exports object — equivalent to module.exports.register, just without reassigning the whole object."
+  },
+  {
+    phase:'code',
+    q:"Guard a protected route with the auth middleware:",
+    code:`router.get("/profile", <span class="blank">____</span>, (req, res) => {
+  res.json({ user: req.user });
+});`,
+    options:["verifyToken","authController","express.Router()","bcrypt"],
+    correct:0,
+    explain:"<b>verifyToken</b> passed as a second argument runs before the route handler, rejecting the request early if the JWT is missing or invalid."
+  },
+  {
+    phase:'code',
+    q:"Complete the check that a found user actually exists before continuing login:",
+    code:`const user = await User.findOne({ username });
+if (<span class="blank">____</span>) {
+  return res.status(401).json({ message: "Invalid credentials" });
+}`,
+    options:["!user","user == null == false","user === false","!user.exists"],
+    correct:0,
+    explain:"<b>!user</b> is true when findOne() returns null (no match) — the simplest, idiomatic guard before touching user.password."
+  },
+  {
+    phase:'code',
+    q:"Complete the array destructuring used to pull the token out of the auth header:",
+    code:`const [scheme, token] = authHeader.split(" ");
+if (scheme !== <span class="blank">____</span>) {
+  return res.status(401).json({ message: "Malformed auth header" });
+}`,
+    options:['"Bearer"',"Bearer","'bearer_token'","token.scheme"],
+    correct:0,
+    explain:'<b>"Bearer"</b> — the standard Authorization header format is "Bearer &lt;token&gt;"; checking the scheme string guards against malformed headers.'
+  },
+  {
+    phase:'code',
+    q:"Complete the mongoose connection call, typically placed before app.listen():",
+    code:`mongoose.<span class="blank">____</span>(process.env.MONGO_URI)
+  .then(() => console.log("DB connected"))
+  .catch(err => console.error(err));`,
+    options:["connect","connection","open","init"],
+    correct:0,
+    explain:"<b>mongoose.connect(uri)</b> returns a promise that resolves once the connection to MongoDB is established."
+  }
+];
+
+let current = 0;
+let score = 0;
+let answered = false;
+let missed = [];
+
+function startQuiz(){
+  document.getElementById('intro').style.display = 'none';
+  document.getElementById('buildbar').style.display = 'block';
+  document.getElementById('quizMain').style.display = 'block';
+  renderQuestion();
+}
+
+function renderQuestion(){
+  answered = false;
+  const q = questions[current];
+  const total = questions.length;
+
+  document.getElementById('qNum').textContent = current + 1;
+  document.getElementById('liveScore').textContent = score;
+  document.getElementById('trackFill').style.width = Math.round(((current)/total)*100) + '%';
+  document.getElementById('phaseLabel').textContent = q.phase === 'theory'
+    ? 'PHASE 1 / THEORY'
+    : 'PHASE 2 / COMPLETE THE CODE';
+
+  const phaseIndex = q.phase === 'theory' ? (current + 1) : (current - 9);
+  document.getElementById('stageLabel').textContent = q.phase === 'theory'
+    ? 'Theory Check ' + String(phaseIndex).padStart(2,'0')
+    : 'Complete The Code ' + String(phaseIndex).padStart(2,'0');
+
+  document.getElementById('qTitle').textContent = q.q;
+
+  const codeBox = document.getElementById('qCode');
+  if(q.code){
+    codeBox.style.display = 'block';
+    codeBox.innerHTML = q.code;
+  } else {
+    codeBox.style.display = 'none';
+  }
+
+  const optWrap = document.getElementById('qOptions');
+  optWrap.innerHTML = '';
+  const letters = ['A','B','C','D'];
+  q.options.forEach((opt, i) => {
+    const div = document.createElement('div');
+    div.className = 'opt';
+    div.innerHTML = '<span class="tag">' + letters[i] + '</span><span>' + opt + '</span>';
+    div.onclick = () => selectAnswer(i, div);
+    optWrap.appendChild(div);
+  });
+
+  document.getElementById('qExplain').className = 'explain';
+  document.getElementById('qExplain').innerHTML = '';
+  document.getElementById('nextBtn').className = 'nextbtn';
+}
+
+function selectAnswer(i, el){
+  if(answered) return;
+  answered = true;
+  const q = questions[current];
+  const allOpts = document.querySelectorAll('.opt');
+
+  allOpts.forEach((o, idx) => {
+    o.classList.add('locked');
+    if(idx === q.correct) o.classList.add('correct');
+    if(idx === i && i !== q.correct) o.classList.add('wrong');
+    if(idx !== q.correct && idx !== i) o.classList.add('dim');
+  });
+
+  if(i === q.correct){
+    score++;
+  } else {
+    missed.push({
+      title: q.q,
+      correctText: q.options[q.correct],
+      phase: q.phase
+    });
+  }
+
+  document.getElementById('liveScore').textContent = score;
+  const explainBox = document.getElementById('qExplain');
+  explainBox.innerHTML = q.explain;
+  explainBox.className = 'explain show';
+  document.getElementById('nextBtn').className = 'nextbtn show';
+  document.getElementById('nextBtn').textContent = (current === questions.length - 1) ? 'SEE RESULTS →' : 'CONTINUE →';
+}
+
+function nextQuestion(){
+  current++;
+  if(current >= questions.length){
+    showResults();
+  } else {
+    renderQuestion();
+    window.scrollTo({top:0, behavior:'smooth'});
+  }
+}
+
+function showResults(){
+  document.getElementById('buildbar').style.display = 'none';
+  document.getElementById('quizMain').style.display = 'none';
+  document.getElementById('results').classList.add('show');
+
+  const total = questions.length;
+  const pct = score / total;
+  const pass = pct >= 0.8;
+
+  const verdict = document.getElementById('verdict');
+  verdict.textContent = pass ? 'BUILD PASSED' : 'BUILD FAILED';
+  verdict.className = 'verdict ' + (pass ? 'pass' : 'fail');
+
+  document.getElementById('scoreBig').innerHTML = score + '<span>/' + total + '</span>';
+  document.getElementById('scoreSub').textContent = pass
+    ? 'All critical checks cleared — this stack compiles clean.'
+    : 'Some assertions failed. Review the log below and re-run.';
+
+  const theoryCorrect = total - missed.filter(m=>m.phase==='code').length - questions.slice(0,10).length + (10 - missed.filter(m=>m.phase==='theory').length);
+  const tCorrect = 10 - missed.filter(m=>m.phase==='theory').length;
+  const cCorrect = 20 - missed.filter(m=>m.phase==='code').length;
+  document.getElementById('theoryScore').textContent = tCorrect + '/10';
+  document.getElementById('codeScore').textContent = cCorrect + '/20';
+
+  const missedList = document.getElementById('missedList');
+  if(missed.length > 0){
+    document.getElementById('missedTitle').style.display = 'block';
+    missed.forEach(m => {
+      const div = document.createElement('div');
+      div.className = 'missed-item';
+      div.innerHTML = '<b>' + (m.phase === 'theory' ? 'THEORY' : 'CODE') + '</b>' + m.title + '<br>Correct answer: ' + m.correctText;
+      missedList.appendChild(div);
+    });
+  }
+}
+</script>
+</body>
+</html>
